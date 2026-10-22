@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JalTrack - Smart IoT Water Monitor</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="light-theme">
+
+    <!-- AUTHENTICATION CONTAINER -->
+    <div id="auth-box" class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-icon"><i class="fa-solid fa-droplet"></i></div>
+            <h2 id="auth-title">JalTrack Portal</h2>
+            <p class="auth-subtitle">Real-time IoT Water Management</p>
+
+            <div id="login-form">
+                <div class="input-group">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" id="login-email" placeholder="Email Address">
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Password">
+                </div>
+                <button onclick="handleLogin()" class="btn-primary">Sign In</button>
+                <p class="switch-text" onclick="toggleAuthMode()">Need an account? <span>Register</span></p>
+            </div>
+
+            <div id="register-form" style="display: none;">
+                <div class="input-group">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" id="reg-email" placeholder="Email Address">
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="reg-password" placeholder="Password">
+                </div>
+                <button onclick="handleRegister()" class="btn-success">Create Account</button>
+                <p class="switch-text" onclick="toggleAuthMode()">Already have an account? <span>Sign In</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTAINER -->
+    <div id="dashboard-box" style="display: none;" class="dashboard-wrapper">
+        
+        <header class="navbar">
+            <div class="nav-brand">
+                <i class="fa-solid fa-droplet"></i>
+                <span>JalTrack</span>
+            </div>
+            <nav class="nav-links">
+                <button onclick="showTab('home')" id="tab-btn-home" class="active"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+                <button onclick="showTab('limits')" id="tab-btn-limits"><i class="fa-solid fa-shield-halved"></i> Limits & Alerts</button>
+                <button onclick="showTab('reports')" id="tab-btn-reports"><i class="fa-solid fa-file-csv"></i> Reports</button>
+                <button onclick="showTab('settings')" id="tab-btn-settings"><i class="fa-solid fa-gear"></i> Settings</button>
+                <button onclick="showTab('profile')" id="tab-btn-profile"><i class="fa-solid fa-user"></i> Profile</button>
+            </nav>
+            <div class="nav-controls">
+                <button onclick="toggleTheme()" class="icon-btn"><i id="theme-icon" class="fa-solid fa-moon"></i></button>
+                <button onclick="logoutUser()" class="icon-btn logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            
+            <!-- TAB 1: DASHBOARD -->
+            <div id="tab-home" class="tab-pane">
+                <div class="welcome-banner">
+                    <div>
+                        <h2>Live Water Monitoring</h2>
+                        <p>ESP32 Sensor Stream Active</p>
+                    </div>
+                    <div class="status-badge">
+                        <span id="status-dot" class="dot"></span>
+                        <span id="connection-status">Connecting...</span>
+                    </div>
+                </div>
+
+                <!-- Live Alert Banner (Hidden by default) -->
+                <div id="alert-banner" class="alert-banner" style="display: none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="alert-text">Warning: Water usage threshold approaching!</span>
+                </div>
+
+                <div class="cards-grid">
+                    <div class="metric-card blue-card">
+                        <div class="card-icon"><i class="fa-solid fa-gauge-high"></i></div>
+                        <div>
+                            <p class="card-title">Current Flow Rate</p>
+                            <h3 id="flowRate-val">0.00</h3>
+                            <span class="card-unit">Liters / minute</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card green-card">
+                        <div class="card-icon"><i class="fa-solid fa-water"></i></div>
+                        <div>
+                            <p class="card-title">Total Water Consumed</p>
+                            <h3 id="totalLitres-val">0.000</h3>
+                            <span class="card-unit">Total Liters</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Limit Progress Widget -->
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <span>Daily Water Consumption Target</span>
+                        <span id="progress-text">0.00 / 500 L</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div id="progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="graph-card">
+                    <div class="graph-header">
+                        <h3><i class="fa-solid fa-wave-square"></i> Real-Time Flow Waveform</h3>
+                        <span class="live-pill">Live Cloud Feed</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="flowChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: LIMITS & ALERTS -->
+            <div id="tab-limits" class="tab-pane" style="display: none;">
+                <div class="content-card">
+                    <h2><i class="fa-solid fa-shield-halved"></i> Water Limit Configurations</h2>
+                    <p class="card-desc">Set custom safety thresholds to trigger automated safety alerts.</p>
+                    
+                    <div class="setting-item">
+                        <label>Daily Consumption Limit (Liters)</label>
+                        <input type="number" id="daily-limit-input" value="500">
+                    </div>
+                    <div class="setting-item">
+                        <label>Warning Threshold (%)</label>
+                        <input type="number" id="threshold-input" value="80">
+                    </div>
+                    <button onclick="saveLimits()" class="btn-primary" style="margin-top: 15px; width: auto; padding: 10px 20px;">Update Limit Rules</button>
+                </div>
+            </div>
+
+            <!-- TAB 3: REPORTS -->
+            <div id="tab-reports" class="tab-pane" style="display: none;">
+                <div class="content-card">
+                    <div class="report-header-flex">
+                        <div>
+                            <h2><i class="fa-solid fa-file-csv"></i> Historical Usage Reports</h2>
+                            <p class="card-desc">Download session data logs for your presentation records.</p>
+                        </div>
+                        <button onclick="exportCSV()" class="btn-success" style="width: auto; padding: 10px 20px;"><i class="fa-solid fa-download"></i> Export CSV Report</button>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Flow Rate (L/min)</th>
+                                    <th>Total Consumed (L)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="3" style="text-align: center; color: #94a3b8;">Awaiting sensor data logs...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: SETTINGS -->
+            <div id="tab-settings" class="tab-pane" style="display: none;">
+                <div class="content-card">
+                    <h2><i class="fa-solid fa-sliders"></i> System Settings</h2>
+                    <div class="setting-item">
+                        <label>Sensor Calibration Factor</label>
+                        <input type="text" value="450.0 Pulses / Liter" readonly>
+                    </div>
+                    <div class="setting-item">
+                        <label>Firebase Database Node</label>
+                        <input type="text" value="/jaltrack/current" readonly>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: PROFILE -->
+            <div id="tab-profile" class="tab-pane" style="display: none;">
+                <div class="content-card profile-card">
+                    <div class="profile-avatar"><i class="fa-solid fa-user-shield"></i></div>
+                    <div>
+                        <h2>Project Administrator</h2>
+                        <p class="profile-email" id="user-email-display">admin@jaltrack.com</p>
+                        <span class="role-badge">System Supervisor</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
